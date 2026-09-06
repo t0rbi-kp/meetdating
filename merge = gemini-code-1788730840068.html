@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Private Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            pink: '#FF2A7A',
+                            purple: '#8A2BE2',
+                            darkBg: '#0F0F12',
+                            cardBg: '#1A1A22',
+                            msgReceived: '#262633',
+                            msgSent: '#FF2A7A'
+                        }
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body { 
+            background-color: #0F0F12; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+        }
+
+        /* --- PRELANDER STYLES --- */
+        #prelander-screen {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+        }
+        .prelander-card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 40px 30px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+        .prelander-card h1 {
+            color: #333;
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+        }
+        .prelander-card p {
+            color: #666;
+            font-size: 1.1rem;
+            line-height: 1.5;
+            margin-bottom: 30px;
+        }
+        .prelander-btn {
+            display: inline-block;
+            width: 100%;
+            padding: 15px;
+            background: #ff4757;
+            color: #fff;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            border-radius: 50px;
+            box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4);
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+        .prelander-btn:hover {
+            background: #ff6b81;
+            transform: translateY(-2px);
+        }
+
+        /* --- CHAT STYLES --- */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .bg-slide-wrapper {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 1.5s ease-in-out;
+            pointer-events: none;
+        }
+        .bg-slide-wrapper.active { opacity: 1; }
+
+        .bg-slide-blur {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            filter: blur(12px) brightness(0.4);
+            transform: scale(1.1);
+        }
+
+        .bg-slide-img {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            background-size: contain;
+            background-position: center center;
+            background-repeat: no-repeat;
+            filter: brightness(0.85);
+        }
+
+        .dot-flashing {
+            position: relative;
+            width: 6px;
+            height: 6px;
+            border-radius: 5px;
+            background-color: #A0A0AB;
+            color: #A0A0AB;
+            animation: dot-flashing 1s infinite linear alternate;
+            animation-delay: 0.5s;
+        }
+        .dot-flashing::before, .dot-flashing::after {
+            content: "";
+            display: inline-block;
+            position: absolute;
+            top: 0;
+            width: 6px;
+            height: 6px;
+            border-radius: 5px;
+            background-color: #A0A0AB;
+            color: #A0A0AB;
+        }
+        .dot-flashing::before { left: -10px; animation: dot-flashing 1s infinite alternate; animation-delay: 0s; }
+        .dot-flashing::after { left: 10px; animation: dot-flashing 1s infinite alternate; animation-delay: 1s; }
+
+        @keyframes dot-flashing {
+            0% { background-color: #A0A0AB; }
+            50%, 100% { background-color: rgba(160, 160, 171, 0.2); }
+        }
+    </style>
+</head>
+<body class="text-gray-200 h-screen flex justify-center items-center overflow-hidden">
+
+    <div id="prelander-screen">
+        <div class="prelander-card">
+            <h1>Let's chat together and win a free leisure escape! ✨</h1>
+            <p>Ready for a fun conversation and a chance to claim your relaxation reward?</p>
+            <button id="start-btn" class="prelander-btn">CONTINUE</button>
+        </div>
+    </div>
+
+    <div id="chat-screen" class="hidden w-full max-w-md h-full sm:h-[90vh] sm:max-h-[720px] sm:rounded-3xl bg-brand-darkBg flex flex-col border border-gray-800/80 shadow-2xl relative overflow-hidden">
+        
+        <div class="bg-brand-cardBg/95 backdrop-blur-md px-4 py-3 border-b border-gray-800 flex items-center justify-between z-20">
+            <div class="flex items-center space-x-3">
+                <div class="relative cursor-pointer" onclick="handleAvatarClick()">
+                    <div class="flex -space-x-2 overflow-hidden">
+                        <img class="inline-block h-9 w-9 rounded-full ring-2 ring-brand-cardBg object-cover" src="https://i.ibb.co/NgXvSW59/70291421-005-9606.jpg" alt="Avatar 1">
+                        <img class="inline-block h-9 w-9 rounded-full ring-2 ring-brand-cardBg object-cover" src="https://i.ibb.co/4wF7hfGC/19406617-067-2a56.jpg" alt="Avatar 2">
+                        <img class="inline-block h-9 w-9 rounded-full ring-2 ring-brand-cardBg object-cover" src="https://i.ibb.co/p6ZxWpSg/11350156-006-2809.jpg" alt="Avatar 3">
+                    </div>
+                    <span class="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-brand-cardBg"></span>
+                </div>
+                <div>
+                    <h1 class="text-sm font-semibold text-white leading-tight">Private Local Chat</h1>
+                    <p class="text-xs text-green-400 font-medium">Matches Active Nearby</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-1 bg-gray-800/80 px-2.5 py-1 rounded-full border border-gray-700/50">
+                <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                <span class="text-[10px] text-gray-300 font-semibold tracking-wide uppercase">18+ ONLY</span>
+            </div>
+        </div>
+
+        <div class="flex-1 relative overflow-hidden flex flex-col">
+            
+            <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+                <div class="bg-slide-wrapper active">
+                    <div class="bg-slide-blur" style="background-image: url('https://i.ibb.co/NgXvSW59/70291421-005-9606.jpg');"></div>
+                    <div class="bg-slide-img" style="background-image: url('https://i.ibb.co/NgXvSW59/70291421-005-9606.jpg');"></div>
+                </div>
+
+                <div class="bg-slide-wrapper">
+                    <div class="bg-slide-blur" style="background-image: url('https://i.ibb.co/4wF7hfGC/19406617-067-2a56.jpg');"></div>
+                    <div class="bg-slide-img" style="background-image: url('https://i.ibb.co/4wF7hfGC/19406617-067-2a56.jpg');"></div>
+                </div>
+
+                <div class="bg-slide-wrapper">
+                    <div class="bg-slide-blur" style="background-image: url('https://i.ibb.co/p6ZxWpSg/11350156-006-2809.jpg');"></div>
+                    <div class="bg-slide-img" style="background-image: url('https://i.ibb.co/p6ZxWpSg/11350156-006-2809.jpg');"></div>
+                </div>
+
+                <div class="bg-slide-wrapper">
+                    <div class="bg-slide-blur" style="background-image: url('https://i.ibb.co/hxhn3xgs/11598742-010-7a81.jpg');"></div>
+                    <div class="bg-slide-img" style="background-image: url('https://i.ibb.co/hxhn3xgs/11598742-010-7a81.jpg');"></div>
+                </div>
+            </div>
+
+            <div id="chat-box" class="flex-1 p-4 overflow-y-auto space-y-4 hide-scrollbar relative z-10"></div>
+
+            <div id="typing-indicator" class="hidden px-4 py-2 relative z-10">
+                <div class="bg-brand-cardBg/90 backdrop-blur-md inline-flex items-center space-x-2 px-4 py-3 rounded-2xl rounded-bl-none border border-gray-800">
+                    <div class="dot-flashing ml-2 mr-2"></div>
+                </div>
+            </div>
+
+        </div>
+
+        <div id="action-area" class="p-4 bg-brand-cardBg/95 backdrop-blur-md border-t border-gray-800 min-h-[90px] flex flex-col justify-center z-20"></div>
+
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const OFFER_URL = "YOUR_OFFER_LINK_HERE";
+
+        // --- PRELANDER TRIGGER ---
+        document.getElementById('start-btn').addEventListener('click', () => {
+            document.getElementById('prelander-screen').style.display = 'none';
+            document.getElementById('chat-screen').classList.remove('hidden');
+            startChatSequence();
+        });
+
+        // --- BACKGROUND SLIDESHOW LOGIC ---
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.bg-slide-wrapper');
+        
+        setInterval(() => {
+            slides[currentSlide].classList.remove('active');
+            currentSlide = (currentSlide + 1) % slides.length;
+            slides[currentSlide].classList.add('active');
+        }, 3000);
+
+        // --- DOM ELEMENTS ---
+        const chatBox = document.getElementById('chat-box');
+        const typingIndicator = document.getElementById('typing-indicator');
+        const actionArea = document.getElementById('action-area');
+
+        // --- HELPER FUNCTIONS ---
+        function scrollToBottom() {
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function showTyping() {
+            typingIndicator.classList.remove('hidden');
+            scrollToBottom();
+        }
+
+        function hideTyping() {
+            typingIndicator.classList.add('hidden');
+        }
+
+        function handleAvatarClick() {
+            window.location.href = OFFER_URL;
+        }
+
+        function appendMessage(text, isUser = false) {
+            const msgWrapper = document.createElement('div');
+            msgWrapper.className = `flex ${isUser ? 'justify-end' : 'justify-start'} mb-3`;
+
+            const msgBubble = document.createElement('div');
+            msgBubble.className = isUser 
+                ? 'bg-brand-msgSent text-white max-w-[80%] px-4 py-2.5 rounded-2xl rounded-br-none text-sm font-medium shadow-lg'
+                : 'bg-brand-cardBg/90 backdrop-blur-md text-gray-100 max-w-[85%] px-4 py-3 rounded-2xl rounded-bl-none text-sm leading-relaxed border border-gray-800/90 shadow-lg';
+
+            msgBubble.innerHTML = text;
+            msgWrapper.appendChild(msgBubble);
+            chatBox.appendChild(msgWrapper);
+            scrollToBottom();
+        }
+
+        // --- CONVERSATION & QUESTIONNAIRE FLOW ---
+        function startChatSequence() {
+            showTyping();
+            setTimeout(() => {
+                hideTyping();
+                appendMessage("Hey! Looking for someone local to chat with right now?");
+                renderInitialButtons();
+            }, 1000);
+        }
+
+        function renderInitialButtons() {
+            actionArea.innerHTML = `
+                <div class="grid grid-cols-1 gap-2">
+                    <button id="btn-yes-online" class="w-full bg-gradient-to-r from-brand-pink to-brand-purple text-white font-semibold py-3 px-4 rounded-xl shadow-lg hover:opacity-95 active:scale-[0.98] transition-all text-sm">
+                        Yes, show me who's online
+                    </button>
+                    <button id="btn-just-browsing" class="w-full bg-gray-800/90 text-gray-300 font-medium py-2.5 px-4 rounded-xl hover:bg-gray-700 active:scale-[0.98] transition-all text-xs border border-gray-700">
+                        Just browsing
+                    </button>
+                </div>
+            `;
+
+            document.getElementById('btn-yes-online').addEventListener('click', () => {
+                handleInitialChoice("Yes, show me who's online");
+            });
+
+            document.getElementById('btn-just-browsing').addEventListener('click', () => {
+                handleBrowsingChoice();
+            });
+        }
+
+        function handleBrowsingChoice() {
+            appendMessage("Just browsing", true);
+            actionArea.innerHTML = '';
+            showTyping();
+
+            setTimeout(() => {
+                hideTyping();
+                appendMessage("No worries! Let's quickly verify your preferences so you can view profiles anytime.");
+                startQuestionnaireStep1();
+            }, 1000);
+        }
+
+        function handleInitialChoice(label) {
+            appendMessage(label, true);
+            actionArea.innerHTML = '';
+            startQuestionnaireStep1();
+        }
+
+        // Step 1
+        function startQuestionnaireStep1() {
+            showTyping();
+            setTimeout(() => {
+                hideTyping();
+                appendMessage("Confirm your age (Must be 18+ to enter)");
+                actionArea.innerHTML = `
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="handleStep1Answer('I am 18+')" class="bg-gradient-to-r from-brand-pink to-brand-purple text-white font-semibold py-3 px-4 rounded-xl shadow-lg hover:opacity-95 active:scale-[0.98] transition-all text-sm">
+                            I am 18+
+                        </button>
+                        <button onclick="handleStep1Answer('Under 18')" class="bg-gray-800 text-gray-300 font-medium py-3 px-4 rounded-xl hover:bg-gray-700 active:scale-[0.98] transition-all text-sm border border-gray-700">
+                            Under 18
+                        </button>
+                    </div>
+                `;
+            }, 1200);
+        }
+
+        function handleStep1Answer(answer) {
+            appendMessage(answer, true);
+            actionArea.innerHTML = '';
+            if (answer === 'Under 18') {
+                showTyping();
+                setTimeout(() => {
+                    hideTyping();
+                    appendMessage("Sorry, you must be at least 18 years old to access private local chats.");
+                }, 1000);
+                return;
+            }
+            startQuestionnaireStep2();
+        }
+
+        // Step 2
+        function startQuestionnaireStep2() {
+            showTyping();
+            setTimeout(() => {
+                hideTyping();
+                appendMessage("What type of chat are you looking for?");
+                actionArea.innerHTML = `
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="handleStep2Answer('Text Chat')" class="bg-gray-800/90 hover:bg-brand-pink/20 text-gray-200 font-medium py-2.5 px-2 rounded-xl border border-gray-700 hover:border-brand-pink transition-all text-xs">
+                            💬 Text
+                        </button>
+                        <button onclick="handleStep2Answer('Voice Chat')" class="bg-gray-800/90 hover:bg-brand-pink/20 text-gray-200 font-medium py-2.5 px-2 rounded-xl border border-gray-700 hover:border-brand-pink transition-all text-xs">
+                            🎙️ Voice
+                        </button>
+                        <button onclick="handleStep2Answer('Private Cam')" class="bg-gradient-to-r from-brand-pink to-brand-purple text-white font-semibold py-2.5 px-2 rounded-xl shadow-lg hover:opacity-95 transition-all text-xs">
+                            🎥 Private Cam
+                        </button>
+                    </div>
+                `;
+            }, 1200);
+        }
+
+        function handleStep2Answer(answer) {
+            appendMessage(answer, true);
+            actionArea.innerHTML = '';
+            startQuestionnaireStep3();
+        }
+
+        // Step 3
+        function startQuestionnaireStep3() {
+            showTyping();
+            setTimeout(() => {
+                hideTyping();
+                appendMessage("Select your preferred age group:");
+                actionArea.innerHTML = `
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="handleStep3Answer('18-24')" class="bg-gray-800/90 hover:bg-brand-pink/20 text-gray-200 font-medium py-2.5 px-2 rounded-xl border border-gray-700 hover:border-brand-pink transition-all text-xs">
+                            18-24
+                        </button>
+                        <button onclick="handleStep3Answer('25-34')" class="bg-gray-800/90 hover:bg-brand-pink/20 text-gray-200 font-medium py-2.5 px-2 rounded-xl border border-gray-700 hover:border-brand-pink transition-all text-xs">
+                            25-34
+                        </button>
+                        <button onclick="handleStep3Answer('35+')" class="bg-gray-800/90 hover:bg-brand-pink/20 text-gray-200 font-medium py-2.5 px-2 rounded-xl border border-gray-700 hover:border-brand-pink transition-all text-xs">
+                            35+
+                        </button>
+                    </div>
+                `;
+            }, 1200);
+        }
+
+        function handleStep3Answer(answer) {
+            appendMessage(answer, true);
+            actionArea.innerHTML = '';
+            runMatchmakingSimulation();
+        }
+
+        // Matchmaking
+        function runMatchmakingSimulation() {
+            showTyping();
+            setTimeout(() => {
+                hideTyping();
+                
+                const progressMsg = `
+                    <div class="space-y-2">
+                        <p class="text-xs text-gray-300 font-medium">Matching profiles near your location...</p>
+                        <div class="w-full bg-gray-800/90 rounded-full h-2.5 overflow-hidden border border-gray-700">
+                            <div id="match-progress-bar" class="bg-gradient-to-r from-brand-pink to-brand-purple h-2.5 rounded-full w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+                `;
+                appendMessage(progressMsg);
+
+                const progressBar = document.getElementById('match-progress-bar');
+                let width = 0;
+                const interval = setInterval(() => {
+                    width += 10;
+                    if (progressBar) progressBar.style.width = width + '%';
+                    
+                    if (width >= 100) {
+                        clearInterval(interval);
+                        setTimeout(showFinalMatches, 500);
+                    }
+                }, 180);
+
+            }, 1000);
+        }
+
+        function showFinalMatches() {
+            showTyping();
+            setTimeout(() => {
+                hideTyping();
+                
+                const finalMsg = `
+                    <p class="mb-3">🎉 <span class="font-bold text-pink-400">Matches Found!</span> 3 private profiles matching your preferences are online and ready to connect now.</p>
+                    <div class="flex space-x-2 my-2 cursor-pointer" onclick="handleAvatarClick()">
+                        <img class="w-14 h-14 rounded-lg object-cover border border-brand-pink/50 shadow-md" src="https://i.ibb.co/NgXvSW59/70291421-005-9606.jpg" alt="Match 1">
+                        <img class="w-14 h-14 rounded-lg object-cover border border-brand-pink/50 shadow-md" src="https://i.ibb.co/4wF7hfGC/19406617-067-2a56.jpg" alt="Match 2">
+                        <img class="w-14 h-14 rounded-lg object-cover border border-brand-pink/50 shadow-md" src="https://i.ibb.co/p6ZxWpSg/11350156-006-2809.jpg" alt="Match 3">
+                    </div>
+                `;
+                appendMessage(finalMsg);
+                renderFinalCTA();
+            }, 1200);
+        }
+
+        function renderFinalCTA() {
+            actionArea.innerHTML = `
+                <a href="${OFFER_URL}" class="w-full bg-gradient-to-r from-brand-pink via-red-500 to-brand-purple text-white font-black text-base py-4 px-4 rounded-xl shadow-xl hover:opacity-95 active:scale-[0.98] transition-all text-center uppercase tracking-wider animate-pulse-fast border border-pink-400/30 flex items-center justify-center space-x-2">
+                    <span>JOIN PRIVATE CHAT ROOM NOW</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                </a>
+            `;
+        }
+    </script>
+</body>
+</html>
